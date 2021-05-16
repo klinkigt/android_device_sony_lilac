@@ -3,6 +3,9 @@ $(call inherit-product, device/sony/yoshino-common/platform.mk)
 ### PROPRIETARY VENDOR FILES
 $(call inherit-product, vendor/sony/lilac/lilac-vendor.mk)
 
+# Enable updating of APEXes
+$(call inherit-product, $(SRC_TARGET_DIR)/product/updatable_apex.mk)
+
 ifeq ($(WITH_FDROID),true)
 $(call inherit-product, vendor/fdroid/fdroid-vendor.mk)
 endif
@@ -22,9 +25,7 @@ PRODUCT_AAPT_PREF_CONFIG := xhdpi
 DEVICE_PACKAGE_OVERLAYS += \
     $(DEVICE_PATH)/overlay
 
-ifeq ($(WITH_TWRP),true)
-include $(DEVICE_PATH)/device/init.mk
-else # WITH_TWRP
+PRODUCT_ENFORCE_RRO_EXCLUDED_OVERLAYS += \
+    $(DEVICE_PATH)/overlay/packages/apps/CarrierConfig
+
 include $(DEVICE_PATH)/device/*.mk
-include $(DEVICE_PATH)/vendor_prop.mk
-endif # WITH_TWRP

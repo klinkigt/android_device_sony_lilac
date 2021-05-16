@@ -1,3 +1,6 @@
+# AUDIO
+etc/audio_policy.conf
+
 # BLUETOOTH
 lib/com.qualcomm.qti.bluetooth_audio@1.0.so
 lib64/com.qualcomm.qti.bluetooth_audio@1.0.so
@@ -149,12 +152,12 @@ product/framework/dpmapi.jar|4696df9793ad676b305d53b5d7ce65ecf74771ad
 product/lib/com.qualcomm.qti.dpm.api@1.0.so|50a6e8edcad48708d0b0cac98e7f9be98bdea225
 product/lib/libdpmctmgr.so|356e4749df6be3d0530293dbbab6e7c543079427
 product/lib/libdpmfdmgr.so|657b3a471fdae7f78cc87e6991cc6e869b68047e
-product/lib/libdpmframework.so|134e2415d303670c75c32f961392aa5aa076ccdc
+product/lib/libdpmframework.so|fb465f761b65870b97efc10a253c063ac960459a
 product/lib/libdpmtcm.so|a2c628ac174a20174f8a9770e5bac587442839fd
 product/lib64/com.qualcomm.qti.dpm.api@1.0.so|a70cfc1be3e06cde6318d6969e114429fe1950bb
 product/lib64/libdpmctmgr.so|b2a31f356a2c675867f32769a0af7848e2969e83
 product/lib64/libdpmfdmgr.so|63f1bff925f290ed2582630c35698b4e6290307a
-product/lib64/libdpmframework.so|82075c8a5516724fdd6a1f693b3b8e84831c1234
+product/lib64/libdpmframework.so|18c729b1d068309a4c197465a1c751ef5caca3ea
 product/lib64/libdpmtcm.so|445bb375f0782d39ea355a4582bb4ab19d85fe87
 -product/priv-app/dpmserviceapp/dpmserviceapp.apk|93b74be6e29ce05de6eae340b02168696dc4b44d
 
@@ -259,7 +262,7 @@ lib/vendor.semc.hardware.light@1.0.so
 lib64/vendor.semc.hardware.light@1.0.so
 
 # MODEM
-bin/sony-modem-switcher|756e104c91a9ff2d3b6654f832c422dc93fe2942
+bin/sony-modem-switcher
 etc/customization/modem/amss_fs_empty.mbn
 etc/customization/modem/amss_fsg_lilac_a1_austria_volte_vowifi_tar.mbn
 etc/customization/modem/amss_fsg_lilac_airtel_in_ims_tar.mbn
@@ -535,24 +538,6 @@ lib64/vendor.qti.hardware.radio.ims@1.3.so:product/lib64/vendor.qti.hardware.rad
 lib64/vendor.qti.ims.callinfo@1.0.so:product/lib64/vendor.qti.ims.callinfo@1.0.so
 lib64/vendor.qti.imsrtpservice@1.0.so:product/lib64/vendor.qti.imsrtpservice@1.0.so
 -priv-app/ims/ims.apk:product/priv-app/ims/ims.apk
-
-# QTI_PERF
-bin/perfservice
-etc/init/perfservice.rc
-lib/libqti-iopd-client_system.so
-lib/libqti-perfd-client_system.so
-lib/libqti-util_system.so
-lib/libqti_performance.so
-lib/vendor.qti.hardware.iop@1.0.so
-lib/vendor.qti.hardware.iop@2.0.so
-lib/vendor.qti.hardware.perf@1.0.so
-lib64/libqti-iopd-client_system.so
-lib64/libqti-perfd-client_system.so
-lib64/libqti-util_system.so
-lib64/libqti_performance.so
-lib64/vendor.qti.hardware.iop@1.0.so
-lib64/vendor.qti.hardware.iop@2.0.so
-lib64/vendor.qti.hardware.perf@1.0.so
 
 # QTI_QTEECONNECTOR
 lib/vendor.qti.hardware.qteeconnector@1.0.so
