@@ -1121,10 +1121,8 @@ vendor/lib64/libkeymasterutils.so
 vendor/bin/energy-awareness|468d5fc803ac4a97ee23f8908feaadd015f96f77
 vendor/lib/vendor.qti.hardware.perf@1.0.so|8fb84f6353794e276027a24b7198bdccd26cc327
 vendor/lib/vendor.qti.hardware.perf@2.0.so|d5a9678f2583b616f55d2eb9643b85cb13f8dd06
-vendor/lib/libqti-perfd-client.so|2c488bc54a6ba25c6dab51dcb538efe6b0ae2b86
 vendor/lib64/vendor.qti.hardware.perf@1.0.so|afd9b13e1a08a77afa0603731c90e58c4cc570f9
 vendor/lib64/vendor.qti.hardware.perf@2.0.so|8330f1eb40d6288641a86afae4dd5ba8a154533b
-vendor/lib64/libqti-perfd-client.so|0c2b82b5e5df6e0efb03ace4a259eb63487dd2b6
 
 # QTI_QTEECONNECTOR
 vendor/bin/hw/vendor.qti.hardware.qteeconnector@1.0-service
