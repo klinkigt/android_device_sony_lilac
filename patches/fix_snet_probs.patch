@@ -1,0 +1,105 @@
+Based on the work from Havoc-OS
+
+diff --git a/init/property_service.cpp b/init/property_service.cpp
+index 65e9cda1c..0ed0dc053 100644
+--- a/init/property_service.cpp
++++ b/init/property_service.cpp
+@@ -45,6 +45,7 @@
+ #include <optional>
+ #include <queue>
+ #include <thread>
++#include <utility>
+ #include <vector>
+ 
+ #include <android-base/chrono_utils.h>
+@@ -104,6 +105,8 @@ struct PropertyAuditData {
+     const char* name;
+ };
+ 
++static bool weaken_prop_override_security = false;
++
+ static int PropertyAuditCallback(void* data, security_class_t /*cls*/, char* buf, size_t len) {
+     auto* d = reinterpret_cast<PropertyAuditData*>(data);
+ 
+@@ -196,7 +199,7 @@ static uint32_t PropertySet(const std::string& name, const std::string& value, s
+     prop_info* pi = (prop_info*) __system_property_find(name.c_str());
+     if (pi != nullptr) {
+         // ro.* properties are actually "write-once".
+-        if (StartsWith(name, "ro.")) {
++        if (StartsWith(name, "ro.") && !weaken_prop_override_security) {
+             *error = "Read-only property was already set";
+             return PROP_ERROR_READ_ONLY_PROPERTY;
+         }
+@@ -788,6 +791,62 @@ static void load_override_properties() {
+     }
+ }
+ 
++static std::pair<const char *, const char *> snet_props[] = {
++    {"ro.boot.flash.locked", "1"},
++    {"ro.boot.vbmeta.device_state", "locked"},
++    {"ro.boot.verifiedbootstate", "green"},
++    {"ro.debuggable", "0"},
++    //{"ro.boot.selinux", "enforcing"}, - n/a
++    //{"ro.boot.veritymode", "enforcing"}, - set
++    //{"ro.boot.warranty_bit", "0"}, - n/a
++    //{"ro.vendor.boot.warranty_bit", "0"}, - n/a
++    //{"ro.vendor.warranty_bit", "0"}, - n/a
++    //{"ro.warranty_bit", "0"}, - na
++    //{"ro.secure", "1"}, - set
++    {"ro.build.type", "user"},
++    {"ro.system.build.type", "user"},
++    //{"ro.system_ext.build.type", "user"}, - n/a
++    {"ro.odm.build.type", "user"},
++    {"ro.product.build.type", "user"},
++    {"ro.vendor.build.type", "user"},
++    //{"ro.build.keys", "release-keys"}, - n/a
++    {"ro.build.tags", "release-keys"},
++    {"ro.odm.build.tags", "release-keys"},
++    {"ro.system.build.tags", "release-keys"},
++    {"ro.vendor.build.tags", "release-keys"},
++    {"vendor.boot.vbmeta.device_state", "locked"},
++    {"vendor.boot.verifiedbootstate", "green"},
++};
++
++static void workaround_snet_properties() {
++    const std::string build_type = android::base::GetProperty("ro.build.type", "");
++
++    // Weaken property override security to set safetynet props
++    weaken_prop_override_security = true;
++
++    std::string error;
++
++    // Hide all sensitive props if not eng build
++    if (build_type != "eng") {
++        LOG(INFO) << "snet: Hiding sensitive props";
++        for (const auto& prop: snet_props) {
++            PropertySet(prop.first, prop.second, &error);
++        }
++    }
++
++    // Extra props
++    const std::string build_flavor_key = "ro.build.flavor";
++    std::string build_flavor_value = android::base::GetProperty(build_flavor_key, "");
++    // userdebug -> user
++    if (android::base::EndsWith(build_flavor_value, "userdebug")) {
++        build_flavor_value.resize(build_flavor_value.size() - std::string("debug").size());
++        PropertySet(build_flavor_key, build_flavor_value, &error);
++    }
++
++    // Restore the normal property override security after safetynet props have been set
++    weaken_prop_override_security = false;
++}
++
+ // If the ro.product.[brand|device|manufacturer|model|name] properties have not been explicitly
+ // set, derive them from ro.product.${partition}.* properties
+ static void property_initialize_ro_product_props() {
+@@ -940,6 +999,9 @@ void property_load_boot_defaults(bool load_debug_prop) {
+     if (android::base::GetBoolProperty("ro.persistent_properties.ready", false)) {
+         update_sys_usb_config();
+     }
++
++    // Workaround SafetyNet
++    workaround_snet_properties();
+ }
+ 
+ bool LoadPropertyInfoFromFile(const std::string& filename,
