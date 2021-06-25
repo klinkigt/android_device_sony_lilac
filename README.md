@@ -11,42 +11,56 @@ How to build LineageOS
 
 * Make a workspace:
 
-        mkdir -p ~/lineageos
-        cd ~/lineageos
+    ```bash
+    mkdir -p ~/lineageos
+    cd ~/lineageos
+    ```
 
 * Initialize the repo:
 
-        repo init -u git://github.com/LineageOS/android.git -b lineage-18.1
+    ```bash
+    repo init -u git://github.com/LineageOS/android.git -b lineage-18.1
+    ```
 
 * Create a local manifest:
 
-        vim .repo/local_manifests/roomservice.xml
+    ```bash
+    vim .repo/local_manifests/roomservice.xml
 
-        <?xml version="1.0" encoding="UTF-8"?>
-        <manifest>
-            <!-- SONY -->
-            <project name="whatawurst/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-18.1" />
-            <project name="whatawurst/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-18.1" />
-            <project name="whatawurst/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-18.1" />
+    <?xml version="1.0" encoding="UTF-8"?>
+    <manifest>
+        <!-- SONY -->
+        <project name="Flamefire/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-18.1" />
+        <project name="Flamefire/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-18.1" />
+        <project name="Flamefire/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-18.1" />
 
-            <!-- Pinned blobs for lilac -->
-            <project name="whatawurst/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-18.1" />
-        </manifest>
+        <!-- Pinned blobs for lilac -->
+        <project name="Flamefire/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-18.1" />
+    </manifest>
+    ```
 
 * Sync the repo:
 
-        repo sync
+    ```bash
+    repo sync
+    ```
 
 * Extract vendor blobs
 
-        cd device/sony/lilac
-        ./extract-files.sh
+    ```bash
+    cd device/sony/lilac
+    ./extract-files.sh
+    ```
 
 * Setup the environment
 
-        source build/envsetup.sh
-        lunch lineage_lilac-userdebug
+    ```bash
+    source build/envsetup.sh
+    lunch lineage_lilac-userdebug
+    ```
 
 * Build LineageOS
 
-        make -j8 bacon
+    ```bash
+    make -j8 bacon
+    ```
