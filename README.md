@@ -25,6 +25,7 @@ How to build LineageOS
 * Create a local manifest:
 
     ```bash
+    mkdir .repo/local_manifests
     vim .repo/local_manifests/roomservice.xml
 
     <?xml version="1.0" encoding="UTF-8"?>
