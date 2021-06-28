@@ -27,11 +27,11 @@ PRODUCT_MANUFACTURER := Sony
 
 PRODUCT_BUILD_PROP_OVERRIDES += \
     PRODUCT_NAME=lilac \
-    PRIVATE_BUILD_DESC="redfin-user 11 RQ1A.210205.004 7038034 release-keys" \
-    BUILD_NUMBER=7038034
+    PRIVATE_BUILD_DESC="redfin-user 11 RQ3A.210605.005 7349499 release-keys" \
+    BUILD_NUMBER=7349499
 
-# Pixel 5 May fingerprint
-BUILD_FINGERPRINT := google/redfin/redfin:11/RQ2A.210505.003/7255357:user/release-keys
+# Pixel 5 June fingerprint
+BUILD_FINGERPRINT := google/redfin/redfin:11/RQ3A.210605.005/7349499:user/release-keys
 
 PRODUCT_GMS_CLIENTID_BASE := android-sony-mobile
 
