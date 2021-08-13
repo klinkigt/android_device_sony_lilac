@@ -1,0 +1,14 @@
+diff --git a/Android.bp b/Android.bp
+index 8cf4f5dd..8ce6ba02 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -58,6 +58,9 @@ java_defaults {
+ cc_library_host_shared {
+     name: "libhidl-gen",
+     defaults: ["hidl-gen-defaults"],
++    cflags: [
++        "-Wno-bool-operation", // found in ConstantExpression.cpp:105
++    ],
+     srcs: [
+         "Annotation.cpp",
+         "ArrayType.cpp",

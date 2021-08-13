@@ -1,0 +1,538 @@
+diff --git a/Android.bp b/Android.bp
+index b07fbe57..5b363b3d 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -543,7 +543,6 @@ toolchain_library {
+                     "__gnu_unwind_execute",
+                     "__gnu_unwind_frame",
+                 ],
+-                use_gnu_strip: true,
+             },
+         },
+         arm64: {
+@@ -591,7 +590,6 @@ toolchain_library {
+             "__register_frame_info_table_bases",
+             "__register_frame_table",
+         ],
+-        use_gnu_strip: true,
+     },
+ }
+ 
+diff --git a/cc/binary.go b/cc/binary.go
+index 2a6ceb82..bff61b6b 100644
+--- a/cc/binary.go
++++ b/cc/binary.go
+@@ -326,7 +326,7 @@ func (binary *binaryDecorator) link(ctx ModuleContext,
+ 		}
+ 		strippedOutputFile := outputFile
+ 		outputFile = android.PathForModuleOut(ctx, "unstripped", fileName)
+-		binary.stripper.strip(ctx, outputFile, strippedOutputFile, builderFlags)
++		binary.stripper.stripExecutableOrSharedLib(ctx, outputFile, strippedOutputFile, builderFlags)
+ 	}
+ 
+ 	binary.unstrippedOutputFile = outputFile
+@@ -350,7 +350,7 @@ func (binary *binaryDecorator) link(ctx ModuleContext,
+ 			if binary.stripper.needsStrip(ctx) {
+ 				out := android.PathForModuleOut(ctx, "versioned-stripped", fileName)
+ 				binary.distFile = android.OptionalPathForPath(out)
+-				binary.stripper.strip(ctx, versionedOutputFile, out, builderFlags)
++				binary.stripper.stripExecutableOrSharedLib(ctx, versionedOutputFile, out, builderFlags)
+ 			}
+ 
+ 			binary.injectVersionSymbol(ctx, outputFile, versionedOutputFile)
+diff --git a/cc/builder.go b/cc/builder.go
+index a9ee4e92..d7b51051 100644
+--- a/cc/builder.go
++++ b/cc/builder.go
+@@ -277,11 +277,12 @@ type builderFlags struct {
+ 
+ 	groupStaticLibs bool
+ 
+-	stripKeepSymbols       bool
+-	stripKeepSymbolsList   string
+-	stripKeepMiniDebugInfo bool
+-	stripAddGnuDebuglink   bool
+-	stripUseGnuStrip       bool
++	stripKeepSymbols              bool
++	stripKeepSymbolsList          string
++	stripKeepSymbolsAndDebugFrame bool
++	stripKeepMiniDebugInfo        bool
++	stripAddGnuDebuglink          bool
++	stripUseGnuStrip              bool
+ 
+ 	proto            android.ProtoFlags
+ 	protoC           bool
+@@ -850,6 +851,9 @@ func TransformStrip(ctx android.ModuleContext, inputFile android.Path,
+ 	if flags.stripKeepSymbolsList != "" {
+ 		args += " -k" + flags.stripKeepSymbolsList
+ 	}
++	if flags.stripKeepSymbolsAndDebugFrame {
++		args += " --keep-symbols-and-debug-frame"
++	}
+ 	if flags.stripUseGnuStrip {
+ 		args += " --use-gnu-strip"
+ 	}
+diff --git a/cc/config/clang.go b/cc/config/clang.go
+index a87d5695..6f9ee4ab 100644
+--- a/cc/config/clang.go
++++ b/cc/config/clang.go
+@@ -48,6 +48,8 @@ var ClangUnknownCflags = sorted([]string{
+ 	"-Wunused-but-set-parameter",
+ 	"-Wunused-but-set-variable",
+ 	"-fdiagnostics-color",
++	// http://b/153759688
++	"-fuse-init-array",
+ 
+ 	// arm + arm64 + mips + mips64
+ 	"-fgcse-after-reload",
+@@ -101,9 +103,6 @@ func init() {
+ 		// not emit the table by default on Android since NDK still uses GNU binutils.
+ 		"-faddrsig",
+ 
+-		// -Wimplicit-fallthrough is not enabled by -Wall.
+-		"-Wimplicit-fallthrough",
+-
+ 		// Help catch common 32/64-bit errors.
+ 		"-Werror=int-conversion",
+ 
+@@ -124,9 +123,6 @@ func init() {
+ 		// color codes if it is not running in a terminal.
+ 		"-fcolor-diagnostics",
+ 
+-		// http://b/68236239 Allow 0/NULL instead of using nullptr everywhere.
+-		"-Wno-zero-as-null-pointer-constant",
+-
+ 		// Warnings from clang-7.0
+ 		"-Wno-sign-compare",
+ 
+@@ -136,9 +132,17 @@ func init() {
+ 		// Disable -Winconsistent-missing-override until we can clean up the existing
+ 		// codebase for it.
+ 		"-Wno-inconsistent-missing-override",
+-	}, " "))
++
++		// Warnings from clang-10
++		// Nested and array designated initialization is nice to have.
++		"-Wno-c99-designator",
++}, " "))
+ 
+ 	pctx.StaticVariable("ClangExtraCppflags", strings.Join([]string{
++		// -Wimplicit-fallthrough is not enabled by -Wall.
++		//"-Wimplicit-fallthrough",
++		"-Wno-missing-variable-declarations",
++
+ 		// Enable clang's thread-safety annotations in libcxx.
+ 		// Turn off -Wthread-safety-negative, to avoid breaking projects that use -Weverything.
+ 		"-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",
+@@ -171,8 +175,29 @@ func init() {
+ 		// compatibility.
+ 		"-Wno-c++98-compat-extra-semi",
+ 
++		// http://b/145210666
++		"-Wno-reorder-init-list",
++		// http://b/145211066
++		"-Wno-implicit-int-float-conversion",
++
++		// New warnings to be fixed after clang-r377782.
++		"-Wno-int-in-bool-context",          // http://b/148287349
++		"-Wno-sizeof-array-div",             // http://b/148815709
++		"-Wno-tautological-overlap-compare", // http://b/148815696
++
+ 		// Disable this warning because we don't care about behavior with older compilers.
+ 		"-Wno-return-std-move-in-c++11",
++		// New warnings to be fixed after clang-r383902.
++		"-Wno-deprecated-copy",                      // http://b/153746672
++		"-Wno-range-loop-construct",                 // http://b/153747076
++		"-Wno-misleading-indentation",               // http://b/153746954
++		"-Wno-zero-as-null-pointer-constant",        // http://b/68236239
++		"-Wno-deprecated-anon-enum-enum-conversion", // http://b/153746485
++		"-Wno-deprecated-enum-enum-conversion",      // http://b/153746563
++		"-Wno-string-compare",                       // http://b/153764102
++		"-Wno-enum-enum-conversion",                 // http://b/154138986
++		"-Wno-enum-float-conversion",                // http://b/154255917
++		"-Wno-pessimizing-move",                     // http://b/154270751
+ 	}, " "))
+ 
+ 	// Extra cflags for projects under external/ directory to disable warnings that are infeasible
+@@ -188,6 +213,13 @@ func init() {
+ 		// Bug: http://b/29823425 Disable -Wnull-dereference until the
+ 		// new instances detected by this warning are fixed.
+ 		"-Wno-null-dereference",
++
++		// http://b/145211477
++		"-Wno-pointer-compare",
++		// http://b/145211022
++		"-Wno-xor-used-as-pow",
++		// http://b/145211022
++		"-Wno-final-dtor-non-final-class",
+ 	}, " "))
+ }
+ 
+diff --git a/cc/config/global.go b/cc/config/global.go
+index 7c7b47a5..203ce1a2 100644
+--- a/cc/config/global.go
++++ b/cc/config/global.go
+@@ -122,8 +122,8 @@ var (
+ 
+ 	// prebuilts/clang default settings.
+ 	ClangDefaultBase         = "prebuilts/clang/host"
+-	ClangDefaultVersion      = "clang-r353983c1"
+-	ClangDefaultShortVersion = "9.0.3"
++	ClangDefaultVersion      = "clang-r383902b1"
++	ClangDefaultShortVersion = "11.0.2"
+ 
+ 	// Directories with warnings from Android.bp files.
+ 	WarningAllowedProjects = []string{
+diff --git a/cc/library.go b/cc/library.go
+index 39f7a724..e28a97c3 100644
+--- a/cc/library.go
++++ b/cc/library.go
+@@ -698,7 +698,7 @@ func (library *libraryDecorator) linkShared(ctx ModuleContext,
+ 		}
+ 		strippedOutputFile := outputFile
+ 		outputFile = android.PathForModuleOut(ctx, "unstripped", fileName)
+-		library.stripper.strip(ctx, outputFile, strippedOutputFile, builderFlags)
++		library.stripper.stripExecutableOrSharedLib(ctx, outputFile, strippedOutputFile, builderFlags)
+ 	}
+ 
+ 	library.unstrippedOutputFile = outputFile
+@@ -715,7 +715,7 @@ func (library *libraryDecorator) linkShared(ctx ModuleContext,
+ 			if library.stripper.needsStrip(ctx) {
+ 				out := android.PathForModuleOut(ctx, "versioned-stripped", fileName)
+ 				library.distFile = android.OptionalPathForPath(out)
+-				library.stripper.strip(ctx, versionedOutputFile, out, builderFlags)
++				library.stripper.stripExecutableOrSharedLib(ctx, versionedOutputFile, out, builderFlags)
+ 			}
+ 
+ 			library.injectVersionSymbol(ctx, outputFile, versionedOutputFile)
+diff --git a/cc/ndk_library.go b/cc/ndk_library.go
+index 7199467b..7fb04ddd 100644
+--- a/cc/ndk_library.go
++++ b/cc/ndk_library.go
+@@ -256,6 +256,7 @@ func addStubLibraryCompilerFlags(flags Flags) Flags {
+ 		// We're knowingly doing some otherwise unsightly things with builtin
+ 		// functions here. We're just generating stub libraries, so ignore it.
+ 		"-Wno-incompatible-library-redeclaration",
++		"-Wno-incomplete-setjmp-declaration",
+ 		"-Wno-builtin-requires-header",
+ 		"-Wno-invalid-noreturn",
+ 		"-Wall",
+diff --git a/cc/prebuilt.go b/cc/prebuilt.go
+index 48e46671..f92c50d1 100644
+--- a/cc/prebuilt.go
++++ b/cc/prebuilt.go
+@@ -98,7 +98,7 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
+ 			libName := ctx.baseModuleName() + flags.Toolchain.ShlibSuffix()
+ 			if p.needsStrip(ctx) {
+ 				stripped := android.PathForModuleOut(ctx, "stripped", libName)
+-				p.strip(ctx, in, stripped, builderFlags)
++				p.stripExecutableOrSharedLib(ctx, in, stripped, builderFlags)
+ 				in = stripped
+ 			}
+ 
+@@ -197,7 +197,7 @@ func (p *prebuiltBinaryLinker) link(ctx ModuleContext,
+ 
+ 		if p.needsStrip(ctx) {
+ 			stripped := android.PathForModuleOut(ctx, "stripped", fileName)
+-			p.strip(ctx, in, stripped, builderFlags)
++			p.stripExecutableOrSharedLib(ctx, in, stripped, builderFlags)
+ 			in = stripped
+ 		}
+ 
+diff --git a/cc/strip.go b/cc/strip.go
+index 7122585e..7e560ec9 100644
+--- a/cc/strip.go
++++ b/cc/strip.go
+@@ -22,11 +22,11 @@ import (
+ 
+ type StripProperties struct {
+ 	Strip struct {
+-		None              *bool    `android:"arch_variant"`
+-		All               *bool    `android:"arch_variant"`
+-		Keep_symbols      *bool    `android:"arch_variant"`
+-		Keep_symbols_list []string `android:"arch_variant"`
+-		Use_gnu_strip     *bool    `android:"arch_variant"`
++		None                         *bool    `android:"arch_variant"`
++		All                          *bool    `android:"arch_variant"`
++		Keep_symbols                 *bool    `android:"arch_variant"`
++		Keep_symbols_list            []string `android:"arch_variant"`
++		Keep_symbols_and_debug_frame *bool    `android:"arch_variant"`
+ 	} `android:"arch_variant"`
+ }
+ 
+@@ -40,23 +40,32 @@ func (stripper *stripper) needsStrip(ctx ModuleContext) bool {
+ }
+ 
+ func (stripper *stripper) strip(ctx ModuleContext, in android.Path, out android.ModuleOutPath,
+-	flags builderFlags) {
++	flags builderFlags, isStaticLib bool) {
+ 	if ctx.Darwin() {
+ 		TransformDarwinStrip(ctx, in, out)
+ 	} else {
+ 		if Bool(stripper.StripProperties.Strip.Keep_symbols) {
+ 			flags.stripKeepSymbols = true
++		} else if Bool(stripper.StripProperties.Strip.Keep_symbols_and_debug_frame) {
++			flags.stripKeepSymbolsAndDebugFrame = true
+ 		} else if len(stripper.StripProperties.Strip.Keep_symbols_list) > 0 {
+ 			flags.stripKeepSymbolsList = strings.Join(stripper.StripProperties.Strip.Keep_symbols_list, ",")
+ 		} else if !Bool(stripper.StripProperties.Strip.All) {
+ 			flags.stripKeepMiniDebugInfo = true
+ 		}
+-		if Bool(stripper.StripProperties.Strip.Use_gnu_strip) {
+-			flags.stripUseGnuStrip = true
+-		}
+-		if ctx.Config().Debuggable() && !flags.stripKeepMiniDebugInfo {
++		if ctx.Config().Debuggable() && !flags.stripKeepMiniDebugInfo && !isStaticLib {
+ 			flags.stripAddGnuDebuglink = true
+ 		}
+ 		TransformStrip(ctx, in, out, flags)
+ 	}
+ }
++
++func (stripper *stripper) stripExecutableOrSharedLib(ctx ModuleContext, in android.Path,
++	out android.ModuleOutPath, flags builderFlags) {
++	stripper.strip(ctx, in, out, flags, false)
++}
++
++func (stripper *stripper) stripStaticLib(ctx ModuleContext, in android.Path, out android.ModuleOutPath,
++	flags builderFlags) {
++	stripper.strip(ctx, in, out, flags, true)
++}
+diff --git a/cc/tidy.go b/cc/tidy.go
+index 54553923..ece0acfa 100644
+--- a/cc/tidy.go
++++ b/cc/tidy.go
+@@ -117,7 +117,18 @@ func (tidy *tidyFeature) flags(ctx ModuleContext, flags Flags) Flags {
+ 		// which is used in many Android files.
+ 		tidyChecks = tidyChecks + ",-cert-dcl16-c"
+ 	}
+-	flags.TidyFlags = append(flags.TidyFlags, tidyChecks)
++	// https://b.corp.google.com/issues/153464409
++	// many local projects enable cert-* checks, which
++	// trigger bugprone-reserved-identifier.
++	tidyChecks = tidyChecks + ",-bugprone-reserved-identifier*,-cert-dcl51-cpp,-cert-dcl37-c"
++    // http://b/153757728
++    tidyChecks = tidyChecks + ",-readability-qualified-auto"
++    // http://b/155034563
++    tidyChecks = tidyChecks + ",-bugprone-signed-char-misuse"
++    // http://b/155034972
++    tidyChecks = tidyChecks + ",-bugprone-branch-clone"
++    tidyChecks = tidyChecks + ",-modernize-use-trailing-return-type"
++    flags.TidyFlags = append(flags.TidyFlags, tidyChecks)
+ 
+ 	if len(tidy.Properties.Tidy_checks_as_errors) > 0 {
+ 		tidyChecksAsErrors := "-warnings-as-errors=" + strings.Join(esc(tidy.Properties.Tidy_checks_as_errors), ",")
+diff --git a/cc/toolchain_library.go b/cc/toolchain_library.go
+index 8ab8bc94..f80ac61c 100644
+--- a/cc/toolchain_library.go
++++ b/cc/toolchain_library.go
+@@ -83,7 +83,7 @@ func (library *toolchainLibraryDecorator) link(ctx ModuleContext,
+ 		fileName := ctx.ModuleName() + staticLibraryExtension
+ 		outputFile := android.PathForModuleOut(ctx, fileName)
+ 		buildFlags := flagsToBuilderFlags(flags)
+-		library.stripper.strip(ctx, srcPath, outputFile, buildFlags)
++		library.stripper.stripStaticLib(ctx, srcPath, outputFile, buildFlags)
+ 		return outputFile
+ 	}
+ 
+diff --git a/scripts/strip.sh b/scripts/strip.sh
+index 0f77da8a..40f01842 100755
+--- a/scripts/strip.sh
++++ b/scripts/strip.sh
+@@ -28,7 +28,7 @@
+ #   --add-gnu-debuglink
+ #   --keep-mini-debug-info
+ #   --keep-symbols
+-#   --use-gnu-strip
++#   --keep-symbols-and-debug-frame
+ #   --remove-build-id
+ 
+ set -o pipefail
+@@ -39,80 +39,59 @@ usage() {
+     cat <<EOF
+ Usage: strip.sh [options] -k symbols -i in-file -o out-file -d deps-file
+ Options:
+-        --add-gnu-debuglink     Add a gnu-debuglink section to out-file
+-        --keep-mini-debug-info  Keep compressed debug info in out-file
+-        --keep-symbols          Keep symbols in out-file
+-        --use-gnu-strip         Use strip/objcopy instead of llvm-{strip,objcopy}
+-        --remove-build-id       Remove the gnu build-id section in out-file
++        --add-gnu-debuglink             Add a gnu-debuglink section to out-file
++        --keep-mini-debug-info          Keep compressed debug info in out-file
++        --keep-symbols                  Keep symbols in out-file
++        --keep-symbols-and-debug-frame  Keep symbols and .debug_frame in out-file
++        --remove-build-id               Remove the gnu build-id section in out-file
+ EOF
+     exit 1
+ }
+ 
+-# Without --use-gnu-strip, GNU strip is replaced with llvm-strip to work around
+-# old GNU strip bug on lld output files, b/80093681.
+-# Similary, calls to objcopy are replaced with llvm-objcopy,
+-# with some exceptions.
+-
+ do_strip() {
+-    # ${CROSS_COMPILE}strip --strip-all does not strip .ARM.attributes,
++    # GNU strip --strip-all does not strip .ARM.attributes,
+     # so we tell llvm-strip to keep it too.
+-    if [ -z "${use_gnu_strip}" ]; then
+-        "${CLANG_BIN}/llvm-strip" --strip-all -keep-section=.ARM.attributes "${infile}" -o "${outfile}.tmp"
+-    else
+-        "${CROSS_COMPILE}strip" --strip-all "${infile}" -o "${outfile}.tmp"
+-    fi
++    "${CLANG_BIN}/llvm-strip" --strip-all --keep-section=.ARM.attributes "${infile}" -o "${outfile}.tmp"
++}
++
++do_strip_keep_symbols_and_debug_frame() {
++    REMOVE_SECTIONS=`"${CLANG_BIN}/llvm-readelf" -S "${infile}" | awk '/.debug_/ {if ($2 != ".debug_frame") {print "--remove-section " $2}}' | xargs`
++    "${CLANG_BIN}/llvm-objcopy" "${infile}" "${outfile}.tmp" ${REMOVE_SECTIONS}
+ }
+ 
+ do_strip_keep_symbols() {
+-    REMOVE_SECTIONS=`"${CROSS_COMPILE}readelf" -S "${infile}" | awk '/.debug_/ {print "--remove-section " $2}' | xargs`
+-    if [ -z "${use_gnu_strip}" ]; then
+-        "${CLANG_BIN}/llvm-objcopy" "${infile}" "${outfile}.tmp" ${REMOVE_SECTIONS}
+-    else
+-        "${CROSS_COMPILE}objcopy" "${infile}" "${outfile}.tmp" ${REMOVE_SECTIONS}
+-    fi
++    REMOVE_SECTIONS=`"${CLANG_BIN}/llvm-readelf" -S "${infile}" | awk '/.debug_/ {print "--remove-section " $2}' | xargs`
++    "${CLANG_BIN}/llvm-objcopy" "${infile}" "${outfile}.tmp" ${REMOVE_SECTIONS}
+ }
+ 
+ do_strip_keep_symbol_list() {
+-    if [ -z "${use_gnu_strip}" ]; then
+-        echo "do_strip_keep_symbol_list does not work with llvm-objcopy"
+-        echo "http://b/131631155"
+-        usage
+-    fi
+-
+     echo "${symbols_to_keep}" | tr ',' '\n' > "${outfile}.symbolList"
+-    KEEP_SYMBOLS="-w --strip-unneeded-symbol=* --keep-symbols="
+-    KEEP_SYMBOLS+="${outfile}.symbolList"
+ 
+-    "${CROSS_COMPILE}objcopy" "${infile}" "${outfile}.tmp" ${KEEP_SYMBOLS}
++    KEEP_SYMBOLS="--strip-unneeded-symbol=* --keep-symbols="
++    KEEP_SYMBOLS+="${outfile}.symbolList"
++    "${CROSS_COMPILE}objcopy" -w "${infile}" "${outfile}.tmp" ${KEEP_SYMBOLS}
+ }
+ 
+ do_strip_keep_mini_debug_info() {
+     rm -f "${outfile}.dynsyms" "${outfile}.funcsyms" "${outfile}.keep_symbols" "${outfile}.debug" "${outfile}.mini_debuginfo" "${outfile}.mini_debuginfo.xz"
+     local fail=
+-    if [ -z "${use_gnu_strip}" ]; then
+-        "${CLANG_BIN}/llvm-strip" --strip-all -keep-section=.ARM.attributes -remove-section=.comment "${infile}" -o "${outfile}.tmp" || fail=true
+-    else
+-        "${CROSS_COMPILE}strip" --strip-all -R .comment "${infile}" -o "${outfile}.tmp" || fail=true
+-    fi
++    "${CLANG_BIN}/llvm-strip" --strip-all --keep-section=.ARM.attributes --remove-section=.comment "${infile}" -o "${outfile}.tmp" || fail=true
++
+     if [ -z $fail ]; then
+-        # Current prebult llvm-objcopy does not support the following flags:
+-        #    --only-keep-debug --rename-section --keep-symbols
+-        # For the following use cases, ${CROSS_COMPILE}objcopy does fine with lld linked files,
+-        # except the --add-section flag.
++        # Current prebult llvm-objcopy does not support --only-keep-debug flag,
++        # and cannot process object files that are produced with the flag. Use
++        # GNU objcopy instead for now. (b/141010852)
+         "${CROSS_COMPILE}objcopy" --only-keep-debug "${infile}" "${outfile}.debug"
+-        "${CROSS_COMPILE}nm" -D "${infile}" --format=posix --defined-only 2> /dev/null | awk '{ print $1 }' | sort >"${outfile}.dynsyms"
+-        "${CROSS_COMPILE}nm" "${infile}" --format=posix --defined-only | awk '{ if ($2 == "T" || $2 == "t" || $2 == "D") print $1 }' | sort > "${outfile}.funcsyms"
++        "${CLANG_BIN}/llvm-nm" -D "${infile}" --format=posix --defined-only 2> /dev/null | awk '{ print $1 }' | sort >"${outfile}.dynsyms"
++        "${CLANG_BIN}/llvm-nm" "${infile}" --format=posix --defined-only | awk '{ if ($2 == "T" || $2 == "t" || $2 == "D") print $1 }' | sort > "${outfile}.funcsyms"
+         comm -13 "${outfile}.dynsyms" "${outfile}.funcsyms" > "${outfile}.keep_symbols"
+         echo >> "${outfile}.keep_symbols" # Ensure that the keep_symbols file is not empty.
+         "${CROSS_COMPILE}objcopy" --rename-section .debug_frame=saved_debug_frame "${outfile}.debug" "${outfile}.mini_debuginfo"
+         "${CROSS_COMPILE}objcopy" -S --remove-section .gdb_index --remove-section .comment --keep-symbols="${outfile}.keep_symbols" "${outfile}.mini_debuginfo"
+         "${CROSS_COMPILE}objcopy" --rename-section saved_debug_frame=.debug_frame "${outfile}.mini_debuginfo"
+         "${XZ}" "${outfile}.mini_debuginfo"
+-        if [ -z "${use_gnu_strip}" ]; then
+-            "${CLANG_BIN}/llvm-objcopy" --add-section .gnu_debugdata="${outfile}.mini_debuginfo.xz" "${outfile}.tmp"
+-        else
+-            "${CROSS_COMPILE}objcopy" --add-section .gnu_debugdata="${outfile}.mini_debuginfo.xz" "${outfile}.tmp"
+-        fi
++
++        "${CLANG_BIN}/llvm-objcopy" --add-section .gnu_debugdata="${outfile}.mini_debuginfo.xz" "${outfile}.tmp"
+         rm -f "${outfile}.dynsyms" "${outfile}.funcsyms" "${outfile}.keep_symbols" "${outfile}.debug" "${outfile}.mini_debuginfo" "${outfile}.mini_debuginfo.xz"
+     else
+         cp -f "${infile}" "${outfile}.tmp"
+@@ -120,19 +99,11 @@ do_strip_keep_mini_debug_info() {
+ }
+ 
+ do_add_gnu_debuglink() {
+-    if [ -z "${use_gnu_strip}" ]; then
+-        "${CLANG_BIN}/llvm-objcopy" --add-gnu-debuglink="${infile}" "${outfile}.tmp"
+-    else
+-        "${CROSS_COMPILE}objcopy" --add-gnu-debuglink="${infile}" "${outfile}.tmp"
+-    fi
++    "${CLANG_BIN}/llvm-objcopy" --add-gnu-debuglink="${infile}" "${outfile}.tmp"
+ }
+ 
+ do_remove_build_id() {
+-    if [ -z "${use_gnu_strip}" ]; then
+-        "${CLANG_BIN}/llvm-strip" -remove-section=.note.gnu.build-id "${outfile}.tmp" -o "${outfile}.tmp.no-build-id"
+-    else
+-        "${CROSS_COMPILE}strip" --remove-section=.note.gnu.build-id "${outfile}.tmp" -o "${outfile}.tmp.no-build-id"
+-    fi
++    "${CLANG_BIN}/llvm-strip" --remove-section=.note.gnu.build-id "${outfile}.tmp" -o "${outfile}.tmp.no-build-id"
+     rm -f "${outfile}.tmp"
+     mv "${outfile}.tmp.no-build-id" "${outfile}.tmp"
+ }
+@@ -148,8 +119,8 @@ while getopts $OPTSTRING opt; do
+                 add-gnu-debuglink) add_gnu_debuglink=true ;;
+                 keep-mini-debug-info) keep_mini_debug_info=true ;;
+                 keep-symbols) keep_symbols=true ;;
++                keep-symbols-and-debug-frame) keep_symbols_and_debug_frame=true ;;
+                 remove-build-id) remove_build_id=true ;;
+-                use-gnu-strip) use_gnu_strip=true ;;
+                 *) echo "Unknown option --${OPTARG}"; usage ;;
+             esac;;
+         ?) usage ;;
+@@ -177,6 +148,16 @@ if [ ! -z "${keep_symbols}" -a ! -z "${keep_mini_debug_info}" ]; then
+     usage
+ fi
+ 
++if [ ! -z "${keep_symbols}" -a ! -z "${keep_symbols_and_debug_frame}" ]; then
++    echo "--keep-symbols and --keep-symbols-and-debug-frame cannot be used together"
++    usage
++fi
++
++if [ ! -z "${keep_mini_debug_info}" -a ! -z "${keep_symbols_and_debug_frame}" ]; then
++    echo "--keep-symbols-mini-debug-info and --keep-symbols-and-debug-frame cannot be used together"
++    usage
++fi
++
+ if [ ! -z "${symbols_to_keep}" -a ! -z "${keep_symbols}" ]; then
+     echo "--keep-symbols and -k cannot be used together"
+     usage
+@@ -195,6 +176,8 @@ elif [ ! -z "${symbols_to_keep}" ]; then
+     do_strip_keep_symbol_list
+ elif [ ! -z "${keep_mini_debug_info}" ]; then
+     do_strip_keep_mini_debug_info
++elif [ ! -z "${keep_symbols_and_debug_frame}" ]; then
++    do_strip_keep_symbols_and_debug_frame
+ else
+     do_strip
+ fi
+@@ -210,18 +193,13 @@ fi
+ rm -f "${outfile}"
+ mv "${outfile}.tmp" "${outfile}"
+ 
+-if [ -z "${use_gnu_strip}" ]; then
+-  USED_STRIP_OBJCOPY="${CLANG_BIN}/llvm-strip ${CLANG_BIN}/llvm-objcopy"
+-else
+-  USED_STRIP_OBJCOPY="${CROSS_COMPILE}strip"
+-fi
+-
+ cat <<EOF > "${depsfile}"
+ ${outfile}: \
+   ${infile} \
+-  ${CROSS_COMPILE}nm \
+   ${CROSS_COMPILE}objcopy \
+-  ${CROSS_COMPILE}readelf \
+-  ${USED_STRIP_OBJCOPY}
++  ${CLANG_BIN}/llvm-nm \
++  ${CLANG_BIN}/llvm-objcopy \
++  ${CLANG_BIN}/llvm-readelf \
++  ${CLANG_BIN}/llvm-strip
+ 
+ EOF

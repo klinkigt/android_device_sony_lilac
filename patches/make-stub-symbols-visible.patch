@@ -1,0 +1,15 @@
+diff --git a/cc/ndk_library.go b/cc/ndk_library.go
+index 7fb04ddd..adb6fc42 100644
+--- a/cc/ndk_library.go
++++ b/cc/ndk_library.go
+@@ -265,6 +265,10 @@ func addStubLibraryCompilerFlags(flags Flags) Flags {
+ 		// (avoids the need to link an unwinder into a fake library).
+ 		"-fno-unwind-tables",
+ 	)
++	// All symbols in the stubs library should be visible.
++	if inList("-fvisibility=hidden", flags.CFlags) {
++		flags.CFlags = append(flags.CFlags, "-fvisibility=default")
++	}
+ 	return flags
+ }
+ 
