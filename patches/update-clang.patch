@@ -1,0 +1,101 @@
+diff --git a/cc/config/clang.go b/cc/config/clang.go
+index a87d5695..c8709c9d 100644
+--- a/cc/config/clang.go
++++ b/cc/config/clang.go
+@@ -48,6 +48,8 @@ var ClangUnknownCflags = sorted([]string{
+ 	"-Wunused-but-set-parameter",
+ 	"-Wunused-but-set-variable",
+ 	"-fdiagnostics-color",
++	// http://b/153759688
++	"-fuse-init-array",
+ 
+ 	// arm + arm64 + mips + mips64
+ 	"-fgcse-after-reload",
+@@ -101,9 +103,6 @@ func init() {
+ 		// not emit the table by default on Android since NDK still uses GNU binutils.
+ 		"-faddrsig",
+ 
+-		// -Wimplicit-fallthrough is not enabled by -Wall.
+-		"-Wimplicit-fallthrough",
+-
+ 		// Help catch common 32/64-bit errors.
+ 		"-Werror=int-conversion",
+ 
+@@ -124,9 +123,6 @@ func init() {
+ 		// color codes if it is not running in a terminal.
+ 		"-fcolor-diagnostics",
+ 
+-		// http://b/68236239 Allow 0/NULL instead of using nullptr everywhere.
+-		"-Wno-zero-as-null-pointer-constant",
+-
+ 		// Warnings from clang-7.0
+ 		"-Wno-sign-compare",
+ 
+@@ -139,6 +135,9 @@ func init() {
+ 	}, " "))
+ 
+ 	pctx.StaticVariable("ClangExtraCppflags", strings.Join([]string{
++		// -Wimplicit-fallthrough is not enabled by -Wall.
++		"-Wimplicit-fallthrough",
++
+ 		// Enable clang's thread-safety annotations in libcxx.
+ 		// Turn off -Wthread-safety-negative, to avoid breaking projects that use -Weverything.
+ 		"-D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS",
+@@ -173,6 +172,18 @@ func init() {
+ 
+ 		// Disable this warning because we don't care about behavior with older compilers.
+ 		"-Wno-return-std-move-in-c++11",
++		// New warnings to be fixed after clang-r383902.
++		"-Wno-deprecated-copy",                      // http://b/153746672
++		"-Wno-range-loop-construct",                 // http://b/153747076
++		"-Wno-misleading-indentation",               // http://b/153746954
++		"-Wno-zero-as-null-pointer-constant",        // http://b/68236239
++		"-Wno-deprecated-anon-enum-enum-conversion", // http://b/153746485
++		"-Wno-deprecated-enum-enum-conversion",      // http://b/153746563
++		"-Wno-string-compare",                       // http://b/153764102
++		"-Wno-enum-enum-conversion",                 // http://b/154138986
++		"-Wno-enum-float-conversion",                // http://b/154255917
++		"-Wno-pessimizing-move",                     // http://b/154270751
++		"-Wno-int-in-bool-context",
+ 	}, " "))
+ 
+ 	// Extra cflags for projects under external/ directory to disable warnings that are infeasible
+diff --git a/cc/config/global.go b/cc/config/global.go
+index 7c7b47a5..203ce1a2 100644
+--- a/cc/config/global.go
++++ b/cc/config/global.go
+@@ -122,8 +122,8 @@ var (
+ 
+ 	// prebuilts/clang default settings.
+ 	ClangDefaultBase         = "prebuilts/clang/host"
+-	ClangDefaultVersion      = "clang-r353983c1"
+-	ClangDefaultShortVersion = "9.0.3"
++	ClangDefaultVersion      = "clang-r383902b1"
++	ClangDefaultShortVersion = "11.0.2"
+ 
+ 	// Directories with warnings from Android.bp files.
+ 	WarningAllowedProjects = []string{
+diff --git a/cc/tidy.go b/cc/tidy.go
+index 54553923..ece0acfa 100644
+--- a/cc/tidy.go
++++ b/cc/tidy.go
+@@ -117,7 +117,18 @@ func (tidy *tidyFeature) flags(ctx ModuleContext, flags Flags) Flags {
+ 		// which is used in many Android files.
+ 		tidyChecks = tidyChecks + ",-cert-dcl16-c"
+ 	}
+-	flags.TidyFlags = append(flags.TidyFlags, tidyChecks)
++	// https://b.corp.google.com/issues/153464409
++	// many local projects enable cert-* checks, which
++	// trigger bugprone-reserved-identifier.
++	tidyChecks = tidyChecks + ",-bugprone-reserved-identifier*,-cert-dcl51-cpp,-cert-dcl37-c"
++    // http://b/153757728
++    tidyChecks = tidyChecks + ",-readability-qualified-auto"
++    // http://b/155034563
++    tidyChecks = tidyChecks + ",-bugprone-signed-char-misuse"
++    // http://b/155034972
++    tidyChecks = tidyChecks + ",-bugprone-branch-clone"
++    tidyChecks = tidyChecks + ",-modernize-use-trailing-return-type"
++    flags.TidyFlags = append(flags.TidyFlags, tidyChecks)
+ 
+ 	if len(tidy.Properties.Tidy_checks_as_errors) > 0 {
+ 		tidyChecksAsErrors := "-warnings-as-errors=" + strings.Join(esc(tidy.Properties.Tidy_checks_as_errors), ",")
