@@ -4,7 +4,7 @@ Device configuration for Sony Xperia XZ1 Compact (lilac)
 Description
 -----------
 
-This repository is for LineageOS 18.1 on Sony Xperia XZ1 Compact (lilac).
+This repository is for LineageOS 19.0 on Sony Xperia XZ1 Compact (lilac).
 
 How to build LineageOS
 ----------------------
@@ -19,7 +19,7 @@ How to build LineageOS
 * Initialize the repo:
 
     ```bash
-    repo init -u git://github.com/LineageOS/android.git -b lineage-18.1
+    repo init -u git://github.com/LineageOS/android.git -b lineage-19.0
     ```
 
 * Create a local manifest:
@@ -31,12 +31,12 @@ How to build LineageOS
     <?xml version="1.0" encoding="UTF-8"?>
     <manifest>
         <!-- SONY -->
-        <project name="Flamefire/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-18.1" />
-        <project name="Flamefire/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-18.1" />
-        <project name="Flamefire/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-18.1" />
+        <project name="Flamefire/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-19.0" />
+        <project name="Flamefire/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-19.0" />
+        <project name="Flamefire/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-19.0" />
 
         <!-- Pinned blobs for lilac -->
-        <project name="Flamefire/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-18.1" />
+        <project name="Flamefire/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-19.0" />
     </manifest>
     ```
 
