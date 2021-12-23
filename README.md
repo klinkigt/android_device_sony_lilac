@@ -31,12 +31,12 @@ How to build LineageOS
     <?xml version="1.0" encoding="UTF-8"?>
     <manifest>
         <!-- SONY -->
-        <project name="Flamefire/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-18.1" />
-        <project name="Flamefire/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-18.1" />
-        <project name="Flamefire/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-18.1" />
+        <project name="klinkigt/android_kernel_sony_msm8998" path="kernel/sony/msm8998" remote="github" revision="lineage-18.1" />
+        <project name="klinkigt/android_device_sony_yoshino-common" path="device/sony/yoshino-common" remote="github" revision="lineage-18.1" />
+        <project name="klinkigt/android_device_sony_lilac" path="device/sony/lilac" remote="github" revision="lineage-18.1" />
 
         <!-- Pinned blobs for lilac -->
-        <project name="Flamefire/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-18.1" />
+        <project name="klinkigt/android_vendor_sony_lilac" path="vendor/sony/lilac" remote="github" revision="lineage-18.1" />
     </manifest>
     ```
 
